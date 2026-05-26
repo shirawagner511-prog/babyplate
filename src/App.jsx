@@ -964,23 +964,25 @@ function WeeklyPlanScreen({ profile, weekPlan, setWeekPlan, weekOffset, setWeekO
           </button>
         </div>
 
-        {/* Action pills */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, overflowX: 'auto', paddingBottom: 2 }}>
-          <button onClick={autoFill} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 20, background: T.green, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            <Icon name="wand" size={14} color="#fff" />תכנון אוטומטי
-          </button>
-          <button onClick={duplicatePrevWeek} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 20, background: T.cream, color: T.mid, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            <Icon name="duplicate" size={14} color={T.mid} />שכפל
-          </button>
-          <button onClick={clearWeek} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 13px', borderRadius: 20, background: T.cream, color: T.mid, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            <Icon name="trash" size={14} color={T.mid} />נקה
-          </button>
-          <div style={{ marginRight: 'auto', display: 'flex', background: T.cream, borderRadius: 20, padding: 3, gap: 2 }}>
+        {/* View toggle + Action pills */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+          <div style={{ display: 'flex', background: T.cream, borderRadius: 20, padding: 3, gap: 2 }}>
             {[{ key: 'daily', label: 'יומי' }, { key: 'table', label: 'שבועי' }].map(v => (
-              <button key={v.key} onClick={() => setViewMode(v.key)} style={{ padding: '5px 12px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, background: viewMode === v.key ? '#fff' : 'transparent', color: viewMode === v.key ? T.dark : T.light, boxShadow: viewMode === v.key ? '0 1px 4px rgba(44,40,38,0.1)' : 'none', transition: 'all .15s' }}>
+              <button key={v.key} onClick={() => setViewMode(v.key)} style={{ padding: '6px 16px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: viewMode === v.key ? '#fff' : 'transparent', color: viewMode === v.key ? T.dark : T.light, boxShadow: viewMode === v.key ? '0 1px 4px rgba(44,40,38,0.1)' : 'none', transition: 'all .15s' }}>
                 {v.label}
               </button>
             ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={autoFill} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 11px', borderRadius: 20, background: T.green, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              <Icon name="wand" size={13} color="#fff" />אוטומטי
+            </button>
+            <button onClick={duplicatePrevWeek} style={{ padding: '7px 11px', borderRadius: 20, background: T.cream, color: T.mid, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              שכפל
+            </button>
+            <button onClick={clearWeek} style={{ width: 32, height: 32, borderRadius: 20, background: T.cream, color: T.mid, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="trash" size={14} color={T.mid} />
+            </button>
           </div>
         </div>
       </div>
