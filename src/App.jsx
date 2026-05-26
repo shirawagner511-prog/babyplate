@@ -879,11 +879,22 @@ function TomorrowBriefing({ weekId, weekPlan, mealLibrary, showToast, notificati
 function WeeklyPlanScreen({ profile, weekPlan, setWeekPlan, weekOffset, setWeekOffset, mealLibrary, setMealLibrary, onSettingsOpen, showToast, notificationTime, setNotificationTime }) {
   const [selectedDay, setSelectedDay] = useState(new Date().getDay())
   const [editSlot, setEditSlot] = useState(null)
-  const [viewMode, setViewMode] = useState('daily') // 'daily' | 'table'
+  const [viewMode, setViewMode] = useState('daily')
+  const [editingNote, setEditingNote] = useState(false)
 
   const weekId = getWeekId(weekOffset)
   const todayIdx = new Date().getDay()
   const plan = weekPlan[weekId] || {}
+
+  function setDayNote(day, note) {
+    setWeekPlan(prev => ({
+      ...prev,
+      [weekId]: {
+        ...(prev[weekId] || {}),
+        [day]: { ...((prev[weekId] || {})[day] || {}), _note: note || undefined },
+      }
+    }))
+  }
 
   function setMeal(day, mealType, meal) {
     setWeekPlan(prev => ({
@@ -1040,7 +1051,7 @@ function WeeklyPlanScreen({ profile, weekPlan, setWeekPlan, weekOffset, setWeekO
           return (
             <button
               key={i}
-              onClick={() => setSelectedDay(i)}
+              onClick={() => { setSelectedDay(i); setEditingNote(false) }}
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                 padding: '10px 4px 8px',
@@ -1053,6 +1064,7 @@ function WeeklyPlanScreen({ profile, weekPlan, setWeekPlan, weekOffset, setWeekO
               }}
             >
               <span style={{ fontSize: 13, fontWeight: 700 }}>{d}</span>
+              {dayPlan._note && <span style={{ fontSize: 9 }}>📝</span>}
               <div style={{ display: 'flex', gap: 2 }}>
                 {MEAL_TYPES.slice(0, 5).map((mt, mi) => (
                   <div key={mi} style={{ width: 4, height: 4, borderRadius: 2, background: dayPlan[mt.key] ? (isSelected || isToday ? 'rgba(255,255,255,0.7)' : T.green) : 'rgba(0,0,0,0.1)' }} />
@@ -1070,6 +1082,50 @@ function WeeklyPlanScreen({ profile, weekPlan, setWeekPlan, weekOffset, setWeekO
             <span style={{ fontSize: 16, fontWeight: 700, color: T.dark }}>יום {DAY_LONG[selectedDay]}</span>
             {weekOffset === 0 && selectedDay === todayIdx && <span style={{ fontSize: 12, background: T.green, color: '#fff', borderRadius: 10, padding: '2px 8px' }}>היום</span>}
           </div>
+        </div>
+
+        {/* Day note */}
+        <div style={{ padding: '4px 16px 8px' }}>
+          {editingNote ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <textarea
+                autoFocus
+                value={plan[selectedDay]?._note || ''}
+                onChange={e => setDayNote(selectedDay, e.target.value)}
+                onBlur={() => setEditingNote(false)}
+                placeholder="הערה ליום זה... (מטפלת, חג, טיול, בחוץ)"
+                rows={2}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: 12,
+                  border: `1.5px solid ${T.green}`, fontSize: 13,
+                  fontFamily: 'Rubik, sans-serif', color: T.dark,
+                  background: '#FFFDF7', resize: 'none', outline: 'none',
+                }}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingNote(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: plan[selectedDay]?._note ? '#FFFDF7' : 'transparent',
+                border: `1px ${plan[selectedDay]?._note ? 'solid' : 'dashed'} ${plan[selectedDay]?._note ? '#E8E2DA' : T.border}`,
+                borderRadius: 12, padding: '8px 12px', cursor: 'pointer',
+                width: '100%', textAlign: 'right',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>📝</span>
+              <span style={{ fontSize: 13, color: plan[selectedDay]?._note ? T.dark : T.light, flex: 1, textAlign: 'right' }}>
+                {plan[selectedDay]?._note || 'הוסיפי הערה ליום זה'}
+              </span>
+              {plan[selectedDay]?._note && (
+                <span
+                  onClick={e => { e.stopPropagation(); setDayNote(selectedDay, '') }}
+                  style={{ fontSize: 12, color: T.light, padding: '2px 6px' }}
+                >✕</span>
+              )}
+            </button>
+          )}
         </div>
 
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
