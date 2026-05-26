@@ -2231,7 +2231,7 @@ export default function App() {
     <div dir="rtl" lang="he" style={{
       fontFamily: 'Rubik, system-ui, sans-serif',
       background: T.bg,
-      height: '100dvh',
+      height: '100%',
       display: 'flex', flexDirection: 'column',
       maxWidth: 480, margin: '0 auto',
       position: 'relative',

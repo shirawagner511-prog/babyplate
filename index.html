@@ -10,14 +10,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { height: 100%; overflow: hidden; }
+      html { height: 100%; }
       body {
+        height: 100%;
         font-family: 'Rubik', system-ui, sans-serif;
         background: #FAFAF7;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        overflow: hidden;
       }
-      #root { height: 100%; }
+      #root {
+        height: 100%;
+        height: 100dvh;
+      }
 
       /* Scrollbar hiding */
       ::-webkit-scrollbar { display: none; }
