@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { mealsDB, getMealsByAge, getMealsByAgeAndType, searchMeals, MEAL_TYPES, AGE_FILTERS } from './data/mealsDB.js'
 import { getRecipe as getRecipeDB } from './data/recipesDB.js'
+import {
+  auth, onAuthChange,
+  signInGoogle, signInEmail, signUpEmail, signOutUser,
+  createFamily, joinFamily, getUserFamilyId,
+  subscribeFamily, saveFamilyData,
+} from './firebase.js'
 
-function getRecipe(mealId) {
-  try {
-    const custom = JSON.parse(localStorage.getItem('customRecipes') || '{}')
-    return custom[mealId] || getRecipeDB(mealId)
-  } catch {
-    return getRecipeDB(mealId)
-  }
+function getRecipe(mealId, customRecipes) {
+  const cr = customRecipes || loadLS('customRecipes', {})
+  return cr[mealId] || getRecipeDB(mealId)
 }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -285,8 +287,183 @@ function OnboardingScreen({ onComplete }) {
   )
 }
 
+// ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
+function LoginScreen({ onDone }) {
+  const [mode, setMode] = useState('choose') // 'choose' | 'email-signin' | 'email-signup'
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleGoogle() {
+    setLoading(true); setError('')
+    try { await signInGoogle() } catch (e) { setError('כניסה עם Google נכשלה'); setLoading(false) }
+  }
+
+  async function handleEmailSignIn() {
+    setLoading(true); setError('')
+    try { await signInEmail(email, password) }
+    catch (e) { setError('אימייל או סיסמה שגויים'); setLoading(false) }
+  }
+
+  async function handleEmailSignUp() {
+    if (!displayName.trim()) { setError('נא להזין שם'); return }
+    setLoading(true); setError('')
+    try { await signUpEmail(email, password, displayName.trim()) }
+    catch (e) {
+      if (e.code === 'auth/email-already-in-use') setError('אימייל כבר רשום, נסי להתחבר')
+      else if (e.code === 'auth/weak-password') setError('סיסמה חלשה מדי (6 תווים לפחות)')
+      else setError('הרשמה נכשלה')
+      setLoading(false)
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '13px 16px', borderRadius: 14,
+    border: `1.5px solid ${T.border}`, fontSize: 15,
+    background: '#fff', color: T.dark, marginBottom: 12,
+  }
+
+  return (
+    <div dir="rtl" lang="he" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', background: 'linear-gradient(180deg, #FAFAF7 0%, #FAEFCF 100%)', fontFamily: 'Rubik, system-ui, sans-serif' }}>
+      <div style={{ marginBottom: 20 }}><SpoonHeartIllo /></div>
+      <h1 style={{ fontSize: 26, fontWeight: 700, color: T.dark, marginBottom: 6, textAlign: 'center' }}>BabyPlate 🥄</h1>
+      <p style={{ fontSize: 14, color: T.mid, marginBottom: 32, textAlign: 'center' }}>כניסה לחשבון המשפחה</p>
+
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        {mode === 'choose' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button onClick={handleGoogle} disabled={loading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px', borderRadius: 16, border: `1.5px solid ${T.border}`, background: '#fff', fontSize: 15, fontWeight: 600, color: T.dark, cursor: 'pointer' }}>
+              <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+              כניסה עם Google
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+              <div style={{ flex: 1, height: 1, background: T.border }} />
+              <span style={{ fontSize: 13, color: T.light }}>או עם אימייל</span>
+              <div style={{ flex: 1, height: 1, background: T.border }} />
+            </div>
+            <button onClick={() => setMode('email-signin')} style={{ padding: '14px', borderRadius: 16, background: T.coral, color: '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+              כניסה עם אימייל וסיסמה
+            </button>
+            <button onClick={() => setMode('email-signup')} style={{ padding: '12px', borderRadius: 16, background: T.cream, color: T.mid, fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+              חשבון חדש — הרשמה
+            </button>
+          </div>
+        )}
+
+        {mode === 'email-signin' && (
+          <div>
+            <button onClick={() => { setMode('choose'); setError('') }} style={{ background: 'none', border: 'none', color: T.mid, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← חזרה</button>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: T.dark, marginBottom: 20 }}>כניסה</h2>
+            <input type="email" placeholder="אימייל" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="סיסמה" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+            {error && <p style={{ color: T.coral, fontSize: 13, marginBottom: 10 }}>{error}</p>}
+            <button onClick={handleEmailSignIn} disabled={loading || !email || !password} style={{ width: '100%', padding: '14px', borderRadius: 16, background: loading ? T.border : T.coral, color: loading ? T.light : '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: loading ? 'default' : 'pointer' }}>
+              {loading ? 'מתחבר...' : 'כניסה'}
+            </button>
+          </div>
+        )}
+
+        {mode === 'email-signup' && (
+          <div>
+            <button onClick={() => { setMode('choose'); setError('') }} style={{ background: 'none', border: 'none', color: T.mid, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← חזרה</button>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: T.dark, marginBottom: 20 }}>הרשמה</h2>
+            <input type="text" placeholder="שם מלא" value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle} />
+            <input type="email" placeholder="אימייל" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="סיסמה (6 תווים לפחות)" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+            {error && <p style={{ color: T.coral, fontSize: 13, marginBottom: 10 }}>{error}</p>}
+            <button onClick={handleEmailSignUp} disabled={loading || !email || !password} style={{ width: '100%', padding: '14px', borderRadius: 16, background: loading ? T.border : T.coral, color: loading ? T.light : '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: loading ? 'default' : 'pointer' }}>
+              {loading ? 'נרשם...' : 'הרשמה'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── FAMILY SETUP SCREEN ──────────────────────────────────────────────────────
+function FamilySetupScreen({ user, onDone }) {
+  const [mode, setMode] = useState('choose') // 'choose' | 'create' | 'join'
+  const [familyName, setFamilyName] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleCreate() {
+    if (!familyName.trim()) { setError('נא להזין שם משפחה'); return }
+    setLoading(true); setError('')
+    try {
+      const { familyId, inviteCode } = await createFamily(user.uid, familyName.trim())
+      onDone(familyId)
+    } catch (e) { setError('יצירת משפחה נכשלה'); setLoading(false) }
+  }
+
+  async function handleJoin() {
+    if (!inviteCode.trim()) { setError('נא להזין קוד הזמנה'); return }
+    setLoading(true); setError('')
+    try {
+      const familyId = await joinFamily(user.uid, inviteCode)
+      onDone(familyId)
+    } catch (e) { setError(e.message || 'הצטרפות נכשלה'); setLoading(false) }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '13px 16px', borderRadius: 14,
+    border: `1.5px solid ${T.border}`, fontSize: 15,
+    background: '#fff', color: T.dark, marginBottom: 12,
+  }
+
+  return (
+    <div dir="rtl" lang="he" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', background: 'linear-gradient(180deg, #FAFAF7 0%, #FAEFCF 100%)', fontFamily: 'Rubik, system-ui, sans-serif' }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>👨‍👩‍👧</div>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: T.dark, marginBottom: 8, textAlign: 'center' }}>הגדרת חשבון משפחה</h1>
+      <p style={{ fontSize: 14, color: T.mid, marginBottom: 32, textAlign: 'center' }}>כל בני המשפחה רואים ועורכים את אותו תפריט</p>
+
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        {mode === 'choose' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <button onClick={() => setMode('create')} style={{ padding: '16px', borderRadius: 16, background: T.coral, color: '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+              ✨ יצירת חשבון משפחה חדש
+            </button>
+            <button onClick={() => setMode('join')} style={{ padding: '14px', borderRadius: 16, background: T.cream, color: T.mid, fontSize: 15, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+              🔗 הצטרפות למשפחה קיימת
+            </button>
+          </div>
+        )}
+
+        {mode === 'create' && (
+          <div>
+            <button onClick={() => { setMode('choose'); setError('') }} style={{ background: 'none', border: 'none', color: T.mid, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← חזרה</button>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: T.dark, marginBottom: 20 }}>יצירת משפחה חדשה</h2>
+            <input type="text" placeholder="שם המשפחה (לדוגמה: משפחת לוי)" value={familyName} onChange={e => setFamilyName(e.target.value)} style={inputStyle} />
+            {error && <p style={{ color: T.coral, fontSize: 13, marginBottom: 10 }}>{error}</p>}
+            <button onClick={handleCreate} disabled={loading} style={{ width: '100%', padding: '14px', borderRadius: 16, background: loading ? T.border : T.coral, color: loading ? T.light : '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: loading ? 'default' : 'pointer' }}>
+              {loading ? 'יוצר...' : 'צור משפחה'}
+            </button>
+          </div>
+        )}
+
+        {mode === 'join' && (
+          <div>
+            <button onClick={() => { setMode('choose'); setError('') }} style={{ background: 'none', border: 'none', color: T.mid, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← חזרה</button>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: T.dark, marginBottom: 8 }}>הצטרפות למשפחה</h2>
+            <p style={{ fontSize: 13, color: T.mid, marginBottom: 20 }}>בקש מבן/בת הזוג לשלוח לך את קוד ההזמנה מהגדרות האפליקציה</p>
+            <input type="text" placeholder="קוד הזמנה (6 תווים)" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', letterSpacing: 4, fontSize: 18, fontWeight: 700 }} />
+            {error && <p style={{ color: T.coral, fontSize: 13, marginBottom: 10 }}>{error}</p>}
+            <button onClick={handleJoin} disabled={loading || inviteCode.length < 6} style={{ width: '100%', padding: '14px', borderRadius: 16, background: (loading || inviteCode.length < 6) ? T.border : T.green, color: (loading || inviteCode.length < 6) ? T.light : '#fff', fontSize: 15, fontWeight: 700, border: 'none', cursor: (loading || inviteCode.length < 6) ? 'default' : 'pointer' }}>
+              {loading ? 'מצטרף...' : 'הצטרף'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── SETTINGS SHEET ───────────────────────────────────────────────────────────
-function SettingsSheet({ open, profile, onSave, onClose, onAdminOpen }) {
+function SettingsSheet({ open, profile, onSave, onClose, onAdminOpen, user, familyId, inviteCode, onSignOut }) {
   const [name, setName] = useState(profile?.name || '')
   const [count, setCount] = useState(profile?.count || '1')
   const [age, setAge] = useState(profile?.ageMonths || 12)
@@ -343,6 +520,28 @@ function SettingsSheet({ open, profile, onSave, onClose, onAdminOpen }) {
         >
           🔧 ניהול מתכונים (Admin)
         </button>
+
+        {inviteCode && (
+          <div style={{ background: T.cream, borderRadius: 14, padding: '14px 16px' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: T.dark, marginBottom: 6 }}>קוד הזמנה למשפחה</p>
+            <p style={{ fontSize: 13, color: T.mid, marginBottom: 10 }}>שלחו קוד זה לבן/בת הזוג להצטרפות לחשבון המשפחה</p>
+            <div style={{ background: '#fff', border: `2px solid ${T.border}`, borderRadius: 12, padding: '12px', textAlign: 'center', fontSize: 24, fontWeight: 700, letterSpacing: 6, color: T.dark }}>
+              {inviteCode}
+            </div>
+          </div>
+        )}
+
+        {user && (
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+            <p style={{ fontSize: 12, color: T.light, marginBottom: 10, textAlign: 'center' }}>מחובר: {user.displayName || user.email}</p>
+            <button
+              onClick={onSignOut}
+              style={{ width: '100%', padding: '12px', borderRadius: 16, fontSize: 14, fontWeight: 600, background: '#fff', color: T.coral, border: `1.5px solid ${T.coral}`, cursor: 'pointer' }}
+            >
+              התנתקות
+            </button>
+          </div>
+        )}
       </div>
     </Sheet>
   )
@@ -2226,38 +2425,97 @@ All text must be in Hebrew.`
   )
 }
 
+// ─── MERGE MEAL LIBRARY ───────────────────────────────────────────────────────
+function mergeMealLibrary(saved) {
+  if (!saved || !saved.length) return mealsDB.map(m => ({ ...m }))
+  const hasOldIds = saved.some(m => /^[a-z]+\d$/.test(m.id))
+  if (hasOldIds) return mealsDB.map(m => ({ ...m }))
+  const savedIds = new Set(saved.map(m => m.id))
+  const merged = saved.map(m => {
+    const fresh = mealsDB.find(db => db.id === m.id)
+    return fresh ? { ...m, ...fresh } : m
+  })
+  mealsDB.forEach(m => { if (!savedIds.has(m.id)) merged.push({ ...m }) })
+  return merged
+}
+
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [profile, setProfile] = useState(() => loadLS('userProfile', null))
+  // Auth state
+  const [authUser, setAuthUser] = useState(undefined) // undefined = loading
+  const [familyId, setFamilyId] = useState(null)
+  const [familyData, setFamilyData] = useState(null)
+  const [authReady, setAuthReady] = useState(false)
+
+  // UI state
   const [tab, setTab] = useState('plan')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [weekPlan, setWeekPlan] = useState(() => loadLS('weekPlan', {}))
-  const [mealLibrary, setMealLibrary] = useState(() => {
-    const saved = loadLS('mealLibrary', null)
-    if (!saved) return mealsDB.map(m => ({ ...m }))
-    // If saved library uses old ID format (e.g. 'b1') reset to fresh db
-    const hasOldIds = saved.some(m => /^[a-z]+\d$/.test(m.id))
-    if (hasOldIds) return mealsDB.map(m => ({ ...m }))
-    // Merge fresh mealsDB fields onto saved db meals, add any new meals missing from saved
-    const savedIds = new Set(saved.map(m => m.id))
-    const merged = saved.map(m => {
-      const fresh = mealsDB.find(db => db.id === m.id)
-      return fresh ? { ...m, ...fresh } : m
-    })
-    mealsDB.forEach(m => { if (!savedIds.has(m.id)) merged.push({ ...m }) })
-    return merged
-  })
-  const [notificationTime, setNotificationTime] = useState(() => loadLS('notificationTime', null))
   const [weekOffset, setWeekOffset] = useState(0)
   const [toast, setToast] = useState(null)
   const [adminOpen, setAdminOpen] = useState(false)
-  const [customRecipes, setCustomRecipes] = useState(() => loadLS('customRecipes', {}))
 
-  // Persist
-  useEffect(() => { if (profile) saveLS('userProfile', profile) }, [profile])
-  useEffect(() => { saveLS('weekPlan', weekPlan) }, [weekPlan])
-  useEffect(() => { saveLS('mealLibrary', mealLibrary) }, [mealLibrary])
-  useEffect(() => { if (notificationTime) saveLS('notificationTime', notificationTime) }, [notificationTime])
+  // Local-only state (not shared)
+  const [notificationTime, setNotificationTime] = useState(() => loadLS('notificationTime', null))
+
+  // Listen to Firebase auth changes
+  useEffect(() => {
+    return onAuthChange(async (user) => {
+      setAuthUser(user)
+      if (user) {
+        const fid = await getUserFamilyId(user.uid)
+        setFamilyId(fid)
+      } else {
+        setFamilyId(null)
+        setFamilyData(null)
+      }
+      setAuthReady(true)
+    })
+  }, [])
+
+  // Subscribe to family Firestore data
+  useEffect(() => {
+    if (!familyId) return
+    const unsub = subscribeFamily(familyId, data => setFamilyData(data))
+    return unsub
+  }, [familyId])
+
+  // Derived shared state from familyData
+  const profile = familyData?.profile || null
+  const weekPlan = familyData?.weekPlan || {}
+  const customRecipes = familyData?.customRecipes || {}
+  const mealLibrary = useMemo(() => mergeMealLibrary(familyData?.mealLibrary), [familyData?.mealLibrary])
+
+  // Save helpers — write to Firestore
+  const saveProfile = useCallback(async (p) => {
+    if (!familyId) return
+    await saveFamilyData(familyId, { profile: p })
+  }, [familyId])
+
+  const setWeekPlan = useCallback(async (updater) => {
+    if (!familyId) return
+    const next = typeof updater === 'function' ? updater(weekPlan) : updater
+    await saveFamilyData(familyId, { weekPlan: next })
+  }, [familyId, weekPlan])
+
+  const setMealLibrary = useCallback(async (updater) => {
+    if (!familyId) return
+    const next = typeof updater === 'function' ? updater(mealLibrary) : updater
+    await saveFamilyData(familyId, { mealLibrary: next })
+  }, [familyId, mealLibrary])
+
+  const setCustomRecipes = useCallback(async (updater) => {
+    if (!familyId) return
+    const next = typeof updater === 'function' ? updater(customRecipes) : updater
+    await saveFamilyData(familyId, { customRecipes: next })
+    saveLS('customRecipes', next) // keep local copy for getRecipe()
+  }, [familyId, customRecipes])
+
+  // Sync customRecipes to localStorage so getRecipe() can use them without prop drilling
+  useEffect(() => {
+    if (customRecipes && Object.keys(customRecipes).length > 0) {
+      saveLS('customRecipes', customRecipes)
+    }
+  }, [customRecipes])
 
   // Notification interval
   useEffect(() => {
@@ -2277,10 +2535,44 @@ export default function App() {
     setTimeout(() => setToast(null), 2200)
   }, [])
 
+  // Loading state
+  if (!authReady) {
+    return (
+      <div dir="rtl" lang="he" style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7', fontFamily: 'Rubik, system-ui, sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ background: T.green, borderRadius: 16, width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Icon name="spoon" size={28} color="#fff" />
+          </div>
+          <p style={{ color: T.mid, fontSize: 15 }}>טוען...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Not logged in
+  if (!authUser) {
+    return <LoginScreen />
+  }
+
+  // Logged in but no family yet
+  if (!familyId) {
+    return <FamilySetupScreen user={authUser} onDone={fid => setFamilyId(fid)} />
+  }
+
+  // Family data not yet loaded
+  if (!familyData) {
+    return (
+      <div dir="rtl" lang="he" style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7', fontFamily: 'Rubik, system-ui, sans-serif' }}>
+        <p style={{ color: T.mid, fontSize: 15 }}>טוען נתוני משפחה...</p>
+      </div>
+    )
+  }
+
+  // Onboarding — profile not set yet
   if (!profile) {
     return (
       <div dir="rtl" lang="he" style={{ fontFamily: 'Rubik, system-ui, sans-serif', minHeight: '100dvh', background: 'linear-gradient(180deg, #FAFAF7 0%, #FAEFCF 100%)', overflowY: 'auto' }}>
-        <OnboardingScreen onComplete={data => { setProfile(data); saveLS('userProfile', data) }} />
+        <OnboardingScreen onComplete={data => saveProfile(data)} />
       </div>
     )
   }
@@ -2356,9 +2648,13 @@ export default function App() {
       <SettingsSheet
         open={settingsOpen}
         profile={profile}
-        onSave={p => { setProfile(p); saveLS('userProfile', p); setSettingsOpen(false) }}
+        onSave={p => { saveProfile(p); setSettingsOpen(false) }}
         onClose={() => setSettingsOpen(false)}
         onAdminOpen={() => setAdminOpen(true)}
+        user={authUser}
+        familyId={familyId}
+        inviteCode={familyData?.inviteCode}
+        onSignOut={() => { signOutUser(); setSettingsOpen(false) }}
       />
 
       {toast && <ToastMessage msg={toast} />}
