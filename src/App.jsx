@@ -3,7 +3,7 @@ import { mealsDB, getMealsByAge, getMealsByAgeAndType, searchMeals, MEAL_TYPES, 
 import { getRecipe as getRecipeDB } from './data/recipesDB.js'
 import {
   auth, onAuthChange,
-  signInGoogle, signInEmail, signUpEmail, signOutUser,
+  signInGoogle, getGoogleRedirectResult, signInEmail, signUpEmail, signOutUser,
   createFamily, joinFamily, getUserFamilyId,
   subscribeFamily, saveFamilyData,
 } from './firebase.js'
@@ -295,6 +295,15 @@ function LoginScreen({ onDone }) {
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [redirectPending, setRedirectPending] = useState(false)
+
+  // Handle Google redirect result on page load
+  useEffect(() => {
+    setRedirectPending(true)
+    getGoogleRedirectResult()
+      .then(() => setRedirectPending(false))
+      .catch(() => setRedirectPending(false))
+  }, [])
 
   async function handleGoogle() {
     setLoading(true); setError('')
@@ -323,6 +332,19 @@ function LoginScreen({ onDone }) {
     width: '100%', padding: '13px 16px', borderRadius: 14,
     border: `1.5px solid ${T.border}`, fontSize: 15,
     background: '#fff', color: T.dark, marginBottom: 12,
+  }
+
+  if (redirectPending) {
+    return (
+      <div dir="rtl" lang="he" style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7', fontFamily: 'Rubik, system-ui, sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ background: T.green, borderRadius: 16, width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Icon name="spoon" size={28} color="#fff" />
+          </div>
+          <p style={{ color: T.mid, fontSize: 15 }}>מתחבר עם Google...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
