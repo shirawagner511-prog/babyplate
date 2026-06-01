@@ -633,8 +633,12 @@ function MealEditSheet({ open, day, mealType, currentMeal, profile, onClose, onS
     if (!query.trim()) {
       return mealLibrary.filter(m => m.mealType === mealType && m.ageMin <= profile.ageMonths && m.ageMax >= profile.ageMonths)
     }
-    return searchMeals(query, profile.ageMonths).filter(m => m.mealType === mealType)
-      .concat(searchMeals(query, profile.ageMonths).filter(m => m.mealType !== mealType))
+    const q = query.toLowerCase()
+    const fromDB = searchMeals(query, profile.ageMonths)
+    const dbIds = new Set(fromDB.map(m => m.id))
+    const manual = mealLibrary.filter(m => m.source !== 'db' && !dbIds.has(m.id) && m.name.toLowerCase().includes(q))
+    const all = [...fromDB, ...manual]
+    return all.filter(m => m.mealType === mealType).concat(all.filter(m => m.mealType !== mealType))
   }, [query, mealLibrary, mealType, profile.ageMonths])
 
   const exactMatch = mealLibrary.some(m => m.name === query.trim())
@@ -804,16 +808,26 @@ function AddToDaySheet({ open, idea, weekOffset, weekPlan, onClose, onPick }) {
 }
 
 // ─── NEW IDEA SHEET ───────────────────────────────────────────────────────────
-function NewIdeaSheet({ open, defaultAge, onClose, onSave }) {
+function NewIdeaSheet({ open, defaultAge, onClose, onSave, initialMeal }) {
   const [name, setName] = useState('')
   const [type, setType] = useState('lunch')
   const [age, setAge] = useState(defaultAge || 12)
   const [note, setNote] = useState('')
   const rangeRef = useRef(null)
+  const isEdit = !!initialMeal
 
   useEffect(() => {
-    if (open) { setName(''); setNote(''); setAge(defaultAge || 12) }
-  }, [open, defaultAge])
+    if (open) {
+      if (initialMeal) {
+        setName(initialMeal.name || '')
+        setType(initialMeal.mealType || 'lunch')
+        setAge(initialMeal.ageMin || defaultAge || 12)
+        setNote(initialMeal.nutritionNote || '')
+      } else {
+        setName(''); setNote(''); setAge(defaultAge || 12); setType('lunch')
+      }
+    }
+  }, [open, defaultAge, initialMeal])
 
   useEffect(() => {
     if (rangeRef.current) {
@@ -825,10 +839,9 @@ function NewIdeaSheet({ open, defaultAge, onClose, onSave }) {
   function handleSave() {
     if (!name.trim()) return
     onSave({
-      id: `manual-${Date.now()}`,
+      ...(initialMeal || {}),
+      id: initialMeal?.id || `manual-${Date.now()}`,
       name: name.trim(),
-      ingredients: [],
-      needsThawing: [],
       ageMin: age,
       ageMax: 36,
       mealType: type,
@@ -839,7 +852,7 @@ function NewIdeaSheet({ open, defaultAge, onClose, onSave }) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="מנה חדשה">
+    <Sheet open={open} onClose={onClose} title={isEdit ? 'עריכת מנה' : 'מנה חדשה'}>
       <div style={{ padding: '8px 20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: T.dark, display: 'block', marginBottom: 6 }}>שם המנה *</label>
@@ -872,7 +885,7 @@ function NewIdeaSheet({ open, defaultAge, onClose, onSave }) {
           disabled={!name.trim()}
           style={{ padding: '14px', borderRadius: 14, fontSize: 15, fontWeight: 700, background: name.trim() ? T.coral : T.border, color: name.trim() ? '#fff' : T.light, border: 'none', cursor: name.trim() ? 'pointer' : 'default', boxShadow: name.trim() ? '0 4px 16px rgba(232,136,106,0.3)' : 'none' }}
         >
-          שמור מנה
+          {isEdit ? 'שמור שינויים' : 'שמור מנה'}
         </button>
       </div>
     </Sheet>
@@ -1635,6 +1648,7 @@ function MealIdeasScreen({ profile, mealLibrary, setMealLibrary, weekPlan, setWe
   const [typeFilter, setTypeFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [newIdeaOpen, setNewIdeaOpen] = useState(false)
+  const [editingMeal, setEditingMeal] = useState(null)
   const [addToDayIdea, setAddToDayIdea] = useState(null)
   const [viewingRecipe, setViewingRecipe] = useState(null)
 
@@ -1657,6 +1671,11 @@ function MealIdeasScreen({ profile, mealLibrary, setMealLibrary, weekPlan, setWe
   function handleSaveNew(meal) {
     setMealLibrary(prev => [...prev, meal])
     showToast?.('מנה נוספה ✓')
+  }
+
+  function handleSaveEdit(meal) {
+    setMealLibrary(prev => prev.map(m => m.id === meal.id ? meal : m))
+    showToast?.('מנה עודכנה ✓')
   }
 
   function handlePick(ideaToAdd, dayIdx) {
@@ -1764,6 +1783,14 @@ function MealIdeasScreen({ profile, mealLibrary, setMealLibrary, weekPlan, setWe
                 </button>
                 {meal.source !== 'db' && (
                   <button
+                    onClick={(e) => { e.stopPropagation(); setEditingMeal(meal) }}
+                    style={{ width: 32, height: 32, borderRadius: 10, background: T.cream, color: T.mid, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    ✏️
+                  </button>
+                )}
+                {meal.source !== 'db' && (
+                  <button
                     onClick={(e) => { e.stopPropagation(); handleDelete(meal) }}
                     style={{ width: 32, height: 32, borderRadius: 10, background: '#FDEAEA', color: T.red, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
@@ -1778,6 +1805,7 @@ function MealIdeasScreen({ profile, mealLibrary, setMealLibrary, weekPlan, setWe
       </div>
 
       <NewIdeaSheet open={newIdeaOpen} defaultAge={profile.ageMonths} onClose={() => setNewIdeaOpen(false)} onSave={handleSaveNew} />
+      <NewIdeaSheet open={!!editingMeal} defaultAge={profile.ageMonths} initialMeal={editingMeal} onClose={() => setEditingMeal(null)} onSave={handleSaveEdit} />
       <AddToDaySheet
         open={!!addToDayIdea}
         idea={addToDayIdea}
